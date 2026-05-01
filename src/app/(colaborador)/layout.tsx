@@ -14,8 +14,8 @@ export default async function ColaboradorLayout({
       <header className="bg-[var(--primary)] text-[var(--primary-fg)] shadow-md">
         <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
           <Link href="/trilha" className="flex items-center gap-2 font-extrabold text-lg">
-            <span className="text-2xl">🌭</span>
-            <span>Trilha do Bigode</span>
+            <span className="text-2xl">🎓</span>
+            <span>Universidade do Bigode</span>
           </Link>
           <div className="flex items-center gap-4 text-sm">
             <span className="hidden sm:inline">

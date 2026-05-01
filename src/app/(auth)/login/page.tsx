@@ -21,7 +21,7 @@ export default function LoginPage() {
         <div className="w-20 h-20 rounded-full bg-[var(--accent)] flex items-center justify-center text-4xl">
           🌭
         </div>
-        <h1 className="text-2xl font-extrabold text-[var(--fg)]">Trilha do Bigode</h1>
+        <h1 className="text-2xl font-extrabold text-[var(--fg)]">Universidade do Bigode</h1>
         <p className="text-sm text-[var(--fg-muted)] text-center">
           Treinamento da rede Cachorro do Bigode
         </p>

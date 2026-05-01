@@ -1,4 +1,4 @@
-# Guia de configuração — Deborah
+# Guia de configuração — Universidade do Bigode (para Deborah)
 
 Esse guia te ajuda a criar as contas necessárias e colocar o app no ar. Não precisa saber programar — eu (Claude) faço junto com você. Cada passo tem um link e o que clicar.
 
@@ -27,7 +27,7 @@ Esse guia te ajuda a criar as contas necessárias e colocar o app no ar. Não pr
 1. Acesse https://supabase.com/dashboard/sign-up
 2. **Sign up with GitHub** (usa a conta que você acabou de criar).
 3. Cria um novo projeto:
-   - Name: `trilha-do-bigode`
+   - Name: `universidade-do-bigode`
    - Database password: **gera uma senha forte e GUARDA num lugar seguro** (não vai precisar quase nunca, mas guarde)
    - Region: **South America (São Paulo)**
    - Plan: **Free**
@@ -99,7 +99,7 @@ Agora marque essa conta como master no banco:
      - `NEXT_PUBLIC_SUPABASE_ANON_KEY` → a anon key
      - `SUPABASE_SERVICE_ROLE_KEY` → a service_role key
    - Clica **Deploy**.
-5. Em ~2 minutos, o app sobe em uma URL tipo `https://trilha-do-bigode.vercel.app`.
+5. Em ~2 minutos, o app sobe em uma URL tipo `https://universidadedobigode.vercel.app`.
 
 ✅ Esse já é o app no ar.
 
@@ -107,7 +107,7 @@ Agora marque essa conta como master no banco:
 
 ## 4. Domínio próprio (opcional) — R$40/ano
 
-> Se quiser uma URL bonita tipo `app.cachorrodobigode.com.br` em vez de `trilha-do-bigode.vercel.app`.
+> Se quiser uma URL bonita tipo `universidade.cachorrodobigode.com.br` em vez de `universidadedobigode.vercel.app`.
 
 1. Compra o domínio em https://registro.br (~R$40/ano).
 2. Na Vercel: **Project Settings** → **Domains** → **Add** → digita o domínio.

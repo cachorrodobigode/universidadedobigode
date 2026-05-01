@@ -1,4 +1,4 @@
-# Trilha do Bigode
+# Universidade do Bigode
 
 Plataforma de treinamento gamificado da rede **Cachorro do Bigode**.
 

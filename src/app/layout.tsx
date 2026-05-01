@@ -10,7 +10,7 @@ const nunito = Nunito({
 });
 
 export const metadata: Metadata = {
-  title: "Trilha do Bigode — Treinamento Cachorro do Bigode",
+  title: "Universidade do Bigode — Treinamento Cachorro do Bigode",
   description: "Plataforma de treinamento gamificado da rede Cachorro do Bigode.",
 };
 
