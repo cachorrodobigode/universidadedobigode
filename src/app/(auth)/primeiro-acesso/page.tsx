@@ -5,6 +5,9 @@ import { trocarSenhaAction, type TrocarSenhaState } from "./actions";
 
 const inicial: TrocarSenhaState = {};
 
+// Primeiro-acesso depende da sessão; nunca prerenderizar.
+export const dynamic = "force-dynamic";
+
 export default function PrimeiroAcessoPage() {
   const [state, action, pending] = useActionState(trocarSenhaAction, inicial);
 
