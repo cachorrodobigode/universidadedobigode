@@ -1,0 +1,75 @@
+@import "tailwindcss";
+
+/* =====================================================================
+   Tokens provisórios baseados na linha visual do Cachorro do Bigode.
+   Vão ser ajustados quando o MIV oficial for incorporado.
+===================================================================== */
+:root {
+  --bg:           #FFF8E7;
+  --bg-card:     #FFFFFF;
+  --fg:           #2A1A0A;
+  --fg-muted:    #7A5C3A;
+  --primary:      #D7263D;   /* vermelho hot dog */
+  --primary-fg:   #FFFFFF;
+  --accent:       #FFC940;   /* amarelo bigode */
+  --accent-fg:    #2A1A0A;
+  --secondary:    #8B4513;   /* marrom pão */
+  --secondary-fg: #FFFFFF;
+  --success:      #2A9D8F;
+  --danger:       #C1121F;
+  --border:       #E7D5B8;
+  --radius:       12px;
+}
+
+@theme inline {
+  --color-background:   var(--bg);
+  --color-card:         var(--bg-card);
+  --color-foreground:   var(--fg);
+  --color-muted:        var(--fg-muted);
+  --color-primary:      var(--primary);
+  --color-primary-fg:   var(--primary-fg);
+  --color-accent:       var(--accent);
+  --color-accent-fg:    var(--accent-fg);
+  --color-secondary:    var(--secondary);
+  --color-secondary-fg: var(--secondary-fg);
+  --color-success:      var(--success);
+  --color-danger:       var(--danger);
+  --color-border:       var(--border);
+  --font-sans: var(--font-nunito), "Nunito", system-ui, -apple-system, sans-serif;
+  --radius-card: var(--radius);
+}
+
+html, body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans);
+}
+
+/* Esconde botões nativos de download em PDF e bloqueia seleção quando o
+   componente tem a classe `pdf-protegido` */
+.pdf-protegido,
+.pdf-protegido * {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.pdf-protegido [class*="Toolbar"] [class*="download" i],
+.pdf-protegido [class*="Toolbar"] [class*="print" i] {
+  display: none !important;
+}
+
+/* Watermark sobre vídeo do YouTube */
+.video-watermark {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  padding: 12px 16px;
+  font-size: 14px;
+  color: rgba(255,255,255,0.85);
+  text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
