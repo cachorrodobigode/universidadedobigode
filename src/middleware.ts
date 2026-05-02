@@ -35,11 +35,9 @@ export async function middleware(request: NextRequest) {
   }
 
   if (user) {
-    const { data: usuario, error: usuarioErr } = await supabase
-      .from("usuarios")
-      .select("primeiro_login, ativo")
-      .eq("id", user.id)
-      .maybeSingle();
+    // Usa RPC com security definer pra evitar bloqueio de RLS recursiva.
+    const { data: perfilArr, error: usuarioErr } = await supabase.rpc("fn_meu_perfil_minimo");
+    const usuario = Array.isArray(perfilArr) && perfilArr[0] ? perfilArr[0] : null;
 
     // Se o auth existe mas o perfil em public.usuarios não foi achado
     // (ou a RLS bloqueou o select), força logout pra evitar loop de redirect.
