@@ -16,9 +16,10 @@ export async function getUsuarioAtual(): Promise<UsuarioComCargo | null> {
   if (!user) return null;
 
   const admin = createSupabaseAdminClient();
+  // `lojas!loja_id` desambigua a relação (existe outra via usuario_lojas).
   const { data } = await admin
     .from("usuarios")
-    .select("*, cargo:cargos(nome, nivel), loja:lojas(nome)")
+    .select("*, cargo:cargos(nome, nivel), loja:lojas!loja_id(nome)")
     .eq("id", user.id)
     .maybeSingle();
 

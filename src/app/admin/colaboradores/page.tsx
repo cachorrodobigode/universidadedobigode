@@ -14,7 +14,7 @@ export default async function CadastrarColaboradorPage() {
     supabase.from("lojas").select("id, nome, cidade").eq("ativa", true).order("nome"),
     supabase
       .from("usuarios")
-      .select("id, nome, cpf, ativo, primeiro_login, cargo:cargos(nome), loja:lojas(nome)")
+      .select("id, nome, cpf, ativo, primeiro_login, cargo:cargos(nome), loja:lojas!loja_id(nome)")
       .eq("ativo", true)
       .order("nome"),
   ]);

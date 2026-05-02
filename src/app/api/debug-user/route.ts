@@ -18,7 +18,7 @@ export async function GET() {
       const admin = createSupabaseAdminClient();
       const { data: usuario, error: uErr } = await admin
         .from("usuarios")
-        .select("id, cpf, nome, primeiro_login, ativo, is_master, is_gerente, cargo:cargos(nome, nivel), loja:lojas(nome)")
+        .select("id, cpf, nome, primeiro_login, ativo, is_master, is_gerente, cargo:cargos(nome, nivel), loja:lojas!loja_id(nome)")
         .eq("id", user.id)
         .maybeSingle();
       out.publicProfile = { found: !!usuario, data: usuario, err: uErr?.message ?? null };

@@ -11,7 +11,7 @@ export default async function UsuariosPage() {
   const admin = createSupabaseAdminClient();
   const { data: usuarios } = await admin
     .from("usuarios")
-    .select("id, nome, cpf, ativo, primeiro_login, is_master, is_gerente, cargo:cargos(nome, nivel), loja:lojas(nome)")
+    .select("id, nome, cpf, ativo, primeiro_login, is_master, is_gerente, cargo:cargos(nome, nivel), loja:lojas!loja_id(nome)")
     .order("nome");
 
   return (
