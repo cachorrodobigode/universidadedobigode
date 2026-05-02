@@ -1,8 +1,9 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useMemo, useState } from "react";
 import { cadastrarColaboradorAction, type CadastrarColaboradorState } from "./actions";
 import { formatarCpf, cpfApenasDigitos } from "@/lib/auth/cpf-email";
+import { NIVEL_CARGO } from "@/lib/auth/cargo-hierarchy";
 
 const inicial: CadastrarColaboradorState = {};
 
@@ -20,9 +21,22 @@ export function CadastrarColaboradorForm({
 }) {
   const [state, action, pending] = useActionState(cadastrarColaboradorAction, inicial);
   const [cpf, setCpf] = useState("");
+  const [cargoId, setCargoId] = useState("");
+  const [lojaPrincipalId, setLojaPrincipalId] = useState("");
+  const [lojasExtrasIds, setLojasExtrasIds] = useState<string[]>([]);
 
-  // Master cadastra qualquer cargo. Gerente não pode promover a master.
-  const cargosVisiveis = ehMaster ? cargos : cargos.filter((c) => c.nivel < 99);
+  const cargosVisiveis = ehMaster ? cargos : cargos.filter((c) => c.nivel < NIVEL_CARGO.MASTER);
+  const cargoSelecionado = useMemo(
+    () => cargosVisiveis.find((c) => c.id === cargoId),
+    [cargosVisiveis, cargoId],
+  );
+  const podeMultiLoja = (cargoSelecionado?.nivel ?? -1) >= NIVEL_CARGO.SUPERVISOR;
+
+  function toggleLojaExtra(id: string) {
+    setLojasExtrasIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
+  }
 
   return (
     <form action={action} className="rounded-xl bg-white border border-[var(--border)] p-6 space-y-4">
@@ -68,7 +82,8 @@ export function CadastrarColaboradorForm({
           <select
             name="cargo_id"
             required
-            defaultValue=""
+            value={cargoId}
+            onChange={(e) => setCargoId(e.target.value)}
             className="rounded-lg border border-[var(--border)] bg-white px-3 py-2 focus:border-[var(--primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
           >
             <option value="" disabled>Escolhe...</option>
@@ -79,10 +94,13 @@ export function CadastrarColaboradorForm({
         </label>
 
         <label className="flex flex-col gap-1">
-          <span className="text-sm font-semibold">Loja</span>
+          <span className="text-sm font-semibold">
+            {podeMultiLoja ? "Loja principal" : "Loja"}
+          </span>
           <select
             name="loja_id"
-            defaultValue=""
+            value={lojaPrincipalId}
+            onChange={(e) => setLojaPrincipalId(e.target.value)}
             className="rounded-lg border border-[var(--border)] bg-white px-3 py-2 focus:border-[var(--primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
           >
             <option value="">— Sem loja vinculada —</option>
@@ -94,6 +112,34 @@ export function CadastrarColaboradorForm({
           </select>
         </label>
       </div>
+
+      {podeMultiLoja && (
+        <div className="rounded-lg border border-[var(--accent)] bg-[#FFFBE6] p-4">
+          <p className="text-sm font-bold mb-1">Lojas adicionais (cargo elevado)</p>
+          <p className="text-xs text-[var(--fg-muted)] mb-3">
+            Como {cargoSelecionado?.nome} cobre múltiplas lojas, marque outras unidades além da principal.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {lojas
+              .filter((l) => l.id !== lojaPrincipalId)
+              .map((l) => (
+                <label key={l.id} className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={lojasExtrasIds.includes(l.id)}
+                    onChange={() => toggleLojaExtra(l.id)}
+                    className="rounded"
+                  />
+                  <span>{l.nome}{l.cidade ? ` (${l.cidade})` : ""}</span>
+                </label>
+              ))}
+            {lojas.filter((l) => l.id !== lojaPrincipalId).length === 0 && (
+              <p className="text-xs text-[var(--fg-muted)]">Cadastre mais lojas pra poder vincular.</p>
+            )}
+          </div>
+          <input type="hidden" name="lojas_extras" value={JSON.stringify(lojasExtrasIds)} />
+        </div>
+      )}
 
       <button
         type="submit"
