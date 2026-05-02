@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getUsuarioAtual } from "@/lib/auth/getUsuarioAtual";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { formatarCpf } from "@/lib/auth/cpf-email";
+import { temAcessoTotalLojas } from "@/lib/auth/cargo-hierarchy";
 import { ResetarSenhaButton } from "./ResetarSenhaButton";
 
 export default async function UsuariosPage() {
@@ -17,8 +18,11 @@ export default async function UsuariosPage() {
     .select("id, nome, cpf, ativo, primeiro_login, is_master, is_gerente, loja_id, cargo:cargos(nome, nivel), loja:lojas!loja_id(nome)")
     .order("nome");
 
+  const meuNivel = usuario.cargo?.nivel ?? 0;
+  const acessoTotal = usuario.is_master || temAcessoTotalLojas(meuNivel);
+
   let usuarios = usuariosBruto ?? [];
-  if (!usuario.is_master) {
+  if (!acessoTotal) {
     const minhasLojas = new Set<string>();
     if (usuario.loja_id) minhasLojas.add(usuario.loja_id);
     const { data: extras } = await admin
@@ -28,12 +32,20 @@ export default async function UsuariosPage() {
       u.loja_id && minhasLojas.has(u.loja_id as string),
     );
   }
+  // Franqueadora vê todos, mas não vê Master (só Master vê Master)
+  if (!usuario.is_master && acessoTotal) {
+    usuarios = usuarios.filter((u) => !u.is_master);
+  }
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-extrabold">
-          {usuario.is_master ? "Todos os usuários" : "Usuários das suas lojas"}
+          {usuario.is_master
+            ? "Todos os usuários"
+            : acessoTotal
+              ? "Todos os usuários (rede)"
+              : "Usuários das suas lojas"}
         </h1>
         <p className="text-sm text-[var(--fg-muted)]">
           Lista de quem tem acesso ao app. Pra cadastrar novo, use

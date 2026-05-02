@@ -3,6 +3,7 @@ import Link from "next/link";
 import { getUsuarioAtual } from "@/lib/auth/getUsuarioAtual";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { formatarCpf } from "@/lib/auth/cpf-email";
+import { temAcessoTotalLojas } from "@/lib/auth/cargo-hierarchy";
 import { EditarUsuarioForm } from "./EditarUsuarioForm";
 import { ToggleAtivoButton } from "./ToggleAtivoButton";
 
@@ -40,9 +41,12 @@ export default async function EditarUsuarioPage({
     return (c.nivel as number) < meuNivel;
   });
 
-  // Mesma lógica pras lojas (não-master só vê suas)
+  // Mesma lógica pras lojas:
+  //  - Master e Franqueadora veem TODAS as lojas
+  //  - Demais (Gerente/Franqueado) veem só as suas
+  const acessoTotal = usuarioLogado.is_master || temAcessoTotalLojas(meuNivel);
   let lojasVisiveis = lojas ?? [];
-  if (!usuarioLogado.is_master) {
+  if (!acessoTotal) {
     const minhasLojas = new Set<string>();
     if (usuarioLogado.loja_id) minhasLojas.add(usuarioLogado.loja_id);
     const { data: minhasExtras } = await admin

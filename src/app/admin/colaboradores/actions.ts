@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { cpfApenasDigitos, cpfValido, cpfParaEmailInterno } from "@/lib/auth/cpf-email";
-import { NIVEL_CARGO } from "@/lib/auth/cargo-hierarchy";
+import { NIVEL_CARGO, temAcessoTotalLojas } from "@/lib/auth/cargo-hierarchy";
 
 export type CadastrarColaboradorState = { erro?: string; ok?: string };
 
@@ -42,14 +42,18 @@ export async function cadastrarColaboradorAction(
   const admin = createSupabaseAdminClient();
   const { data: meuPerfil } = await admin
     .from("usuarios")
-    .select("is_master, is_gerente, loja_id")
+    .select("is_master, is_gerente, loja_id, cargo:cargos(nivel)")
     .eq("id", user.id)
     .maybeSingle();
 
   if (!meuPerfil?.is_master && !meuPerfil?.is_gerente) {
     return { erro: "Você não tem permissão para cadastrar colaboradores." };
   }
-  if (!meuPerfil.is_master) {
+
+  const meuNivel = ((meuPerfil.cargo as unknown as { nivel?: number })?.nivel) ?? 0;
+  const acessoTotal = meuPerfil.is_master || temAcessoTotalLojas(meuNivel);
+
+  if (!acessoTotal) {
     // Gerente / Franqueado só cadastra em loja que ele cobre
     // (loja principal OU loja extra via usuario_lojas).
     const minhasLojas = new Set<string>();
@@ -200,22 +204,28 @@ export async function editarUsuarioAction(
     if (alvo.is_master) {
       return { erro: "Você não pode editar um Master." };
     }
-    // Loja atual do alvo precisa estar nas suas lojas
-    const minhasLojas = new Set<string>();
-    if (meu.loja_id) minhasLojas.add(meu.loja_id as string);
-    const { data: extras } = await admin
-      .from("usuario_lojas").select("loja_id").eq("usuario_id", user.id);
-    for (const e of extras ?? []) minhasLojas.add(e.loja_id as string);
-    if (!alvo.loja_id || !minhasLojas.has(alvo.loja_id as string)) {
-      return { erro: "Esse colaborador não está nas suas lojas." };
-    }
-    // Loja nova também precisa estar nas suas
-    if (!loja_id || !minhasLojas.has(loja_id)) {
-      return { erro: "Você só pode mover pra uma das suas lojas." };
-    }
     // Cargo novo precisa ter nível < seu próprio nível
     if (novoNivel >= meuNivel) {
       return { erro: "Você não pode atribuir esse cargo (precisa ser menor que o seu)." };
+    }
+    // Cargo atual do alvo também precisa ter nível < seu (não pode editar igual ou superior)
+    const nivelAlvo = ((alvo.cargo as unknown as { nivel?: number })?.nivel) ?? 0;
+    if (nivelAlvo >= meuNivel) {
+      return { erro: "Você não pode editar quem tem cargo igual ou superior ao seu." };
+    }
+    // Franqueadora/Master ignoram restrição de loja. Demais (Gerente/Franqueado): apenas suas lojas.
+    if (!temAcessoTotalLojas(meuNivel)) {
+      const minhasLojas = new Set<string>();
+      if (meu.loja_id) minhasLojas.add(meu.loja_id as string);
+      const { data: extras } = await admin
+        .from("usuario_lojas").select("loja_id").eq("usuario_id", user.id);
+      for (const e of extras ?? []) minhasLojas.add(e.loja_id as string);
+      if (!alvo.loja_id || !minhasLojas.has(alvo.loja_id as string)) {
+        return { erro: "Esse colaborador não está nas suas lojas." };
+      }
+      if (!loja_id || !minhasLojas.has(loja_id)) {
+        return { erro: "Você só pode mover pra uma das suas lojas." };
+      }
     }
   }
 
@@ -278,21 +288,30 @@ export async function toggleAtivoUsuarioAction(
 
   const admin = createSupabaseAdminClient();
   const { data: meu } = await admin
-    .from("usuarios").select("is_master, is_gerente, loja_id").eq("id", user.id).maybeSingle();
+    .from("usuarios").select("is_master, is_gerente, loja_id, cargo:cargos(nivel)").eq("id", user.id).maybeSingle();
   const { data: alvo } = await admin
-    .from("usuarios").select("loja_id, is_master").eq("id", usuario_id).maybeSingle();
+    .from("usuarios").select("loja_id, is_master, cargo:cargos(nivel)").eq("id", usuario_id).maybeSingle();
   if (!alvo) return { erro: "Usuário não encontrado." };
   if (alvo.is_master) return { erro: "Não dá pra desativar um Master." };
 
   if (!meu?.is_master) {
     if (!meu?.is_gerente) return { erro: "Sem permissão." };
-    const minhasLojas = new Set<string>();
-    if (meu.loja_id) minhasLojas.add(meu.loja_id as string);
-    const { data: extras } = await admin
-      .from("usuario_lojas").select("loja_id").eq("usuario_id", user.id);
-    for (const e of extras ?? []) minhasLojas.add(e.loja_id as string);
-    if (!alvo.loja_id || !minhasLojas.has(alvo.loja_id as string)) {
-      return { erro: "Esse colaborador não está nas suas lojas." };
+
+    const meuNivel = ((meu.cargo as unknown as { nivel?: number })?.nivel) ?? 0;
+    const nivelAlvo = ((alvo.cargo as unknown as { nivel?: number })?.nivel) ?? 0;
+    if (nivelAlvo >= meuNivel) {
+      return { erro: "Você não pode mexer em quem tem cargo igual ou superior ao seu." };
+    }
+
+    if (!temAcessoTotalLojas(meuNivel)) {
+      const minhasLojas = new Set<string>();
+      if (meu.loja_id) minhasLojas.add(meu.loja_id as string);
+      const { data: extras } = await admin
+        .from("usuario_lojas").select("loja_id").eq("usuario_id", user.id);
+      for (const e of extras ?? []) minhasLojas.add(e.loja_id as string);
+      if (!alvo.loja_id || !minhasLojas.has(alvo.loja_id as string)) {
+        return { erro: "Esse colaborador não está nas suas lojas." };
+      }
     }
   }
 
