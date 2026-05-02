@@ -1,7 +1,7 @@
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export default async function MasterDashboardPage() {
-  const supabase = await createSupabaseServerClient();
+  const supabase = createSupabaseAdminClient();
   const [{ count: totalUsuarios }, { count: totalLojas }, { count: totalModulos }, { count: totalBrindes }] =
     await Promise.all([
       supabase.from("usuarios").select("*", { count: "exact", head: true }),

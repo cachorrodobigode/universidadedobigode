@@ -1,4 +1,4 @@
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getUsuarioAtual } from "@/lib/auth/getUsuarioAtual";
 import { redirect } from "next/navigation";
 
@@ -6,7 +6,7 @@ export default async function CargosPage() {
   const usuario = await getUsuarioAtual();
   if (!usuario?.is_master) redirect("/admin/colaboradores");
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = createSupabaseAdminClient();
   const { data: cargos } = await supabase
     .from("cargos")
     .select("id, nome, nivel, descricao, ativo")

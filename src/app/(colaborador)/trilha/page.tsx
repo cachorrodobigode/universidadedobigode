@@ -1,5 +1,6 @@
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getUsuarioAtual } from "@/lib/auth/getUsuarioAtual";
+import { podeVerModulo } from "@/lib/auth/cargo-hierarchy";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 
@@ -20,17 +21,18 @@ export default async function TrilhaPage() {
   const usuario = await getUsuarioAtual();
   if (!usuario) redirect("/login");
 
-  const supabase = await createSupabaseServerClient();
+  // Usa admin client pra pular RLS recursiva. Filtra manualmente pelo cargo
+  // (a regra "trilha cumulativa" está em podeVerModulo).
+  const admin = createSupabaseAdminClient();
+  const nivelUsuario = usuario.cargo?.nivel ?? 0;
 
-  // Saldo de bigocoins
-  const { data: saldo } = await supabase
+  const { data: saldo } = await admin
     .from("saldo_bigocoins")
     .select("saldo")
     .eq("usuario_id", usuario.id)
     .maybeSingle();
 
-  // Módulos visíveis (RLS filtra automaticamente por nível do usuário)
-  const { data: modulos } = await supabase
+  const { data: modulosTodos } = await admin
     .from("modulos")
     .select(`
       id, ordem, titulo, descricao, recompensa_bigocoins,
@@ -41,6 +43,10 @@ export default async function TrilhaPage() {
     .eq("ativo", true)
     .order("ordem", { ascending: true })
     .returns<ModuloComProgresso[]>();
+
+  const modulos = (modulosTodos ?? []).filter((m) =>
+    podeVerModulo(nivelUsuario, m.nivel_minimo, m.is_preparativo),
+  );
 
   return (
     <div className="space-y-6">

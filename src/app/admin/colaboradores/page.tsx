@@ -1,4 +1,4 @@
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { CadastrarColaboradorForm } from "./CadastrarColaboradorForm";
 import { getUsuarioAtual } from "@/lib/auth/getUsuarioAtual";
 import { redirect } from "next/navigation";
@@ -8,7 +8,7 @@ export default async function CadastrarColaboradorPage() {
   const usuario = await getUsuarioAtual();
   if (!usuario || (!usuario.is_master && !usuario.is_gerente)) redirect("/trilha");
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = createSupabaseAdminClient();
   const [{ data: cargos }, { data: lojas }, { data: colabs }] = await Promise.all([
     supabase.from("cargos").select("id, nome, nivel").eq("ativo", true).order("nivel"),
     supabase.from("lojas").select("id, nome, cidade").eq("ativa", true).order("nome"),

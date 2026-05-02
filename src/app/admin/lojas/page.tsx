@@ -1,4 +1,4 @@
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { LojaForm } from "./LojaForm";
 import { getUsuarioAtual } from "@/lib/auth/getUsuarioAtual";
 import { redirect } from "next/navigation";
@@ -7,7 +7,7 @@ export default async function LojasPage() {
   const usuario = await getUsuarioAtual();
   if (!usuario?.is_master) redirect("/admin/colaboradores");
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = createSupabaseAdminClient();
   const { data: lojas } = await supabase
     .from("lojas")
     .select("id, nome, cidade, ativa")
