@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { getUsuarioAtual } from "@/lib/auth/getUsuarioAtual";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { formatarCpf } from "@/lib/auth/cpf-email";
-import { temAcessoTotalLojas } from "@/lib/auth/cargo-hierarchy";
+import { temAcessoTotalLojas, NIVEL_CARGO } from "@/lib/auth/cargo-hierarchy";
 import { ResetarSenhaButton } from "./ResetarSenhaButton";
 
 export default async function UsuariosPage() {
@@ -22,6 +22,16 @@ export default async function UsuariosPage() {
   const acessoTotal = usuario.is_master || temAcessoTotalLojas(meuNivel);
 
   let usuarios = usuariosBruto ?? [];
+
+  // Filtro 1: cargos elevados (Franqueadora e Master) só visíveis pelo Master.
+  if (!usuario.is_master) {
+    usuarios = usuarios.filter((u) => {
+      const n = (u.cargo as unknown as { nivel?: number })?.nivel ?? 0;
+      return n < NIVEL_CARGO.FRANQUEADORA;
+    });
+  }
+
+  // Filtro 2: Gerente/Franqueado vê só usuários das suas lojas.
   if (!acessoTotal) {
     const minhasLojas = new Set<string>();
     if (usuario.loja_id) minhasLojas.add(usuario.loja_id);
@@ -31,10 +41,6 @@ export default async function UsuariosPage() {
     usuarios = usuarios.filter((u) =>
       u.loja_id && minhasLojas.has(u.loja_id as string),
     );
-  }
-  // Franqueadora vê todos, mas não vê Master (só Master vê Master)
-  if (!usuario.is_master && acessoTotal) {
-    usuarios = usuarios.filter((u) => !u.is_master);
   }
 
   return (

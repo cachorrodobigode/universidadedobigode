@@ -3,6 +3,7 @@ import { CadastrarColaboradorForm } from "./CadastrarColaboradorForm";
 import { getUsuarioAtual } from "@/lib/auth/getUsuarioAtual";
 import { redirect } from "next/navigation";
 import { formatarCpf } from "@/lib/auth/cpf-email";
+import { NIVEL_CARGO } from "@/lib/auth/cargo-hierarchy";
 import Link from "next/link";
 
 export default async function CadastrarColaboradorPage() {
@@ -15,10 +16,18 @@ export default async function CadastrarColaboradorPage() {
     supabase.from("lojas").select("id, nome, cidade").eq("ativa", true).order("nome"),
     supabase
       .from("usuarios")
-      .select("id, nome, cpf, ativo, primeiro_login, cargo:cargos(nome), loja:lojas!loja_id(nome)")
+      .select("id, nome, cpf, ativo, primeiro_login, cargo:cargos(nome, nivel), loja:lojas!loja_id(nome)")
       .eq("ativo", true)
       .order("nome"),
   ]);
+
+  // Esconde Franqueadora e Master pra não-master.
+  const colabsVisiveis = usuario.is_master
+    ? (colabs ?? [])
+    : (colabs ?? []).filter((c) => {
+        const n = (c.cargo as unknown as { nivel?: number })?.nivel ?? 0;
+        return n < NIVEL_CARGO.FRANQUEADORA;
+      });
 
   const lojasVisiveis = usuario.is_master
     ? (lojas ?? [])
@@ -40,7 +49,7 @@ export default async function CadastrarColaboradorPage() {
       />
 
       <div className="rounded-xl bg-white border border-[var(--border)] p-6">
-        <h2 className="font-bold mb-3">Colaboradores ativos ({colabs?.length ?? 0})</h2>
+        <h2 className="font-bold mb-3">Colaboradores ativos ({colabsVisiveis.length})</h2>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -54,7 +63,7 @@ export default async function CadastrarColaboradorPage() {
               </tr>
             </thead>
             <tbody>
-              {(colabs ?? []).map((c) => (
+              {colabsVisiveis.map((c) => (
                 <tr key={c.id} className="border-b border-[var(--border)] last:border-0">
                   <td className="py-2 pr-4">{c.nome}</td>
                   <td className="py-2 pr-4">{formatarCpf(c.cpf)}</td>
@@ -87,7 +96,7 @@ export default async function CadastrarColaboradorPage() {
                   </td>
                 </tr>
               ))}
-              {(colabs ?? []).length === 0 && (
+              {colabsVisiveis.length === 0 && (
                 <tr>
                   <td colSpan={6} className="py-6 text-center text-[var(--fg-muted)]">
                     Nenhum colaborador cadastrado ainda.

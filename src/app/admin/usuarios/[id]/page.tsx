@@ -27,6 +27,12 @@ export default async function EditarUsuarioPage({
     .maybeSingle();
   if (!alvo) notFound();
 
+  // Bloqueia: se não-master tentando ver Franqueadora ou Master, redireciona.
+  const nivelAlvo = (alvo.cargo as unknown as { nivel?: number })?.nivel ?? 0;
+  if (!usuarioLogado.is_master && nivelAlvo >= 7) {
+    redirect("/admin/usuarios");
+  }
+
   const { data: cargos } = await admin
     .from("cargos").select("id, nome, nivel").eq("ativo", true).order("nivel");
   const { data: lojas } = await admin
