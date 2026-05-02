@@ -216,17 +216,3 @@ export async function registrarConteudoUploadAction(_p: ActionState, fd: FormDat
   return { ok: "Vídeo enviado e adicionado." };
 }
 
-/**
- * Gera signed URL temporária (5min) pra reproduzir um vídeo do Storage.
- * Usada pelo player do colaborador.
- */
-export async function gerarSignedUrlVideo(storagePath: string): Promise<string | null> {
-  const supabase = await createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
-
-  const admin = createSupabaseAdminClient();
-  const { data, error } = await admin.storage.from("videos").createSignedUrl(storagePath, 300);
-  if (error || !data) return null;
-  return data.signedUrl;
-}

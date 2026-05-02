@@ -4,7 +4,6 @@ import { getUsuarioAtual } from "@/lib/auth/getUsuarioAtual";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { podeVerModulo } from "@/lib/auth/cargo-hierarchy";
 import { formatarCpf } from "@/lib/auth/cpf-email";
-import { gerarSignedUrlVideo } from "@/app/admin/trilhas/actions";
 import { VideoYouTubeProtegido } from "@/components/VideoYouTubeProtegido";
 import { VideoUploadProtegido } from "@/components/VideoUploadProtegido";
 import { ConcluirModuloForm } from "./ConcluirModuloForm";
@@ -72,12 +71,16 @@ export default async function ModuloPage({
 
   const conteudos = (data.conteudos ?? []).sort((a, b) => a.ordem - b.ordem);
 
-  // Pre-gera signed URLs pros vídeos hospedados (server-side)
+  // Pre-gera signed URLs pros vídeos hospedados (server-side, inline pra evitar
+  // qualquer overhead de Server Action chamada de Server Component).
   const signedUrls = new Map<string, string>();
   for (const c of conteudos) {
-    if (c.tipo === "video_upload") {
-      const url = await gerarSignedUrlVideo(c.url);
-      if (url) signedUrls.set(c.id, url);
+    if (c.tipo !== "video_upload") continue;
+    try {
+      const { data: sig } = await admin.storage.from("videos").createSignedUrl(c.url, 300);
+      if (sig?.signedUrl) signedUrls.set(c.id, sig.signedUrl);
+    } catch (e) {
+      console.error("[modulo] signed url falhou", c.id, (e as Error).message);
     }
   }
 
