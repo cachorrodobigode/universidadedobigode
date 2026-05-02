@@ -5,6 +5,7 @@ export const NIVEL_CARGO = {
   LIDER: 3,
   SUPERVISOR: 4,
   GERENTE: 5,
+  FRANQUEADO: 6,
   MASTER: 99,
 } as const;
 
@@ -17,6 +18,7 @@ export const NOME_POR_NIVEL: Record<number, string> = {
   3: "Líder",
   4: "Supervisor",
   5: "Gerente",
+  6: "Franqueado",
   99: "Master",
 };
 

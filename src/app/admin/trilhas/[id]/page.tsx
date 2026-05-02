@@ -5,6 +5,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { NOME_POR_NIVEL } from "@/lib/auth/cargo-hierarchy";
 import { AddModuloForm } from "./AddModuloForm";
 import { AddConteudoForm } from "./AddConteudoForm";
+import { EditarTrilhaForm } from "./EditarTrilhaForm";
 import { DeletarModuloButton, DeletarConteudoButton, DeletarTrilhaButton } from "./Botoes";
 
 type Conteudo = {
@@ -39,10 +40,16 @@ export default async function TrilhaDetalhePage({
 
   const { data: trilha } = await admin
     .from("trilhas")
-    .select("id, nome, descricao, ordem, ativa")
+    .select("id, nome, descricao, cargo_id, ordem, ativa")
     .eq("id", id)
     .maybeSingle();
   if (!trilha) notFound();
+
+  const { data: cargos } = await admin
+    .from("cargos")
+    .select("id, nome, nivel")
+    .eq("ativo", true)
+    .order("nivel");
 
   const { data: modulos } = await admin
     .from("modulos")
@@ -66,8 +73,25 @@ export default async function TrilhaDetalhePage({
           {trilha.descricao && (
             <p className="text-sm text-[var(--fg-muted)] mt-1">{trilha.descricao as string}</p>
           )}
+          {!trilha.ativa && (
+            <span className="inline-block mt-1 text-[10px] font-bold uppercase bg-gray-300 px-2 py-0.5 rounded">
+              Inativa (não aparece pros colaboradores)
+            </span>
+          )}
         </div>
-        <DeletarTrilhaButton id={trilha.id as string} nome={trilha.nome as string} />
+        <div className="flex flex-col gap-2 items-end">
+          <EditarTrilhaForm
+            trilha={{
+              id: trilha.id as string,
+              nome: trilha.nome as string,
+              descricao: (trilha.descricao as string | null) ?? null,
+              cargo_id: (trilha.cargo_id as string | null) ?? null,
+              ativa: trilha.ativa as boolean,
+            }}
+            cargos={(cargos ?? []) as { id: string; nome: string; nivel: number }[]}
+          />
+          <DeletarTrilhaButton id={trilha.id as string} nome={trilha.nome as string} />
+        </div>
       </div>
 
       <AddModuloForm trilhaId={trilha.id as string} />

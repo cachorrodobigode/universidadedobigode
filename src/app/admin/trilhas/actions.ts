@@ -42,6 +42,32 @@ export async function criarTrilhaAction(_p: ActionState, fd: FormData): Promise<
   return { ok: `Trilha "${nome}" criada.`, id: nova.id as string };
 }
 
+export async function editarTrilhaAction(_p: ActionState, fd: FormData): Promise<ActionState> {
+  const id = String(fd.get("id") ?? "");
+  const nome = String(fd.get("nome") ?? "").trim();
+  const descricao = String(fd.get("descricao") ?? "").trim() || null;
+  const cargoIdRaw = String(fd.get("cargo_id") ?? "");
+  const cargo_id = cargoIdRaw || null;
+  const ativa = fd.get("ativa") === "on";
+
+  if (!id) return { erro: "ID inválido." };
+  if (nome.length < 3) return { erro: "Nome muito curto." };
+
+  const auth = await exigeMaster();
+  if (auth.erro) return { erro: auth.erro };
+
+  const admin = createSupabaseAdminClient();
+  const { error } = await admin
+    .from("trilhas")
+    .update({ nome, descricao, cargo_id, ativa })
+    .eq("id", id);
+  if (error) return { erro: error.message };
+
+  revalidatePath("/admin/trilhas");
+  revalidatePath(`/admin/trilhas/${id}`);
+  return { ok: "Trilha atualizada." };
+}
+
 export async function deletarTrilhaAction(_p: ActionState, fd: FormData): Promise<ActionState> {
   const id = String(fd.get("id") ?? "");
   if (!id) return { erro: "ID inválido." };

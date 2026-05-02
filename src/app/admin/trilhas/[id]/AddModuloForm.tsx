@@ -58,7 +58,7 @@ export function AddModuloForm({ trilhaId }: { trilhaId: string }) {
             className="rounded-lg border border-[var(--border)] bg-white px-3 py-2 focus:border-[var(--primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
           >
             {Object.entries(NOME_POR_NIVEL)
-              .filter(([n]) => Number(n) <= NIVEL_CARGO.GERENTE)
+              .filter(([n]) => Number(n) <= NIVEL_CARGO.FRANQUEADO)
               .sort(([a], [b]) => Number(a) - Number(b))
               .map(([nivel, nome]) => (
                 <option key={nivel} value={nivel}>

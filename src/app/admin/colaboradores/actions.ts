@@ -49,8 +49,20 @@ export async function cadastrarColaboradorAction(
   if (!meuPerfil?.is_master && !meuPerfil?.is_gerente) {
     return { erro: "Você não tem permissão para cadastrar colaboradores." };
   }
-  if (!meuPerfil.is_master && meuPerfil.loja_id !== loja_id) {
-    return { erro: "Gerentes só cadastram colaboradores da própria loja." };
+  if (!meuPerfil.is_master) {
+    // Gerente / Franqueado só cadastra em loja que ele cobre
+    // (loja principal OU loja extra via usuario_lojas).
+    const minhasLojas = new Set<string>();
+    if (meuPerfil.loja_id) minhasLojas.add(meuPerfil.loja_id as string);
+    const { data: extras } = await admin
+      .from("usuario_lojas")
+      .select("loja_id")
+      .eq("usuario_id", user.id);
+    for (const e of extras ?? []) minhasLojas.add(e.loja_id as string);
+
+    if (!loja_id || !minhasLojas.has(loja_id)) {
+      return { erro: "Você só cadastra colaboradores nas suas lojas." };
+    }
   }
 
   // Verifica nivel do cargo selecionado pra decidir se aceita lojas extras
