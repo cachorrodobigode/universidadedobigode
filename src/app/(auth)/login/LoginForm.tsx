@@ -31,6 +31,12 @@ export function LoginForm() {
           Sua conta está inativa. Procure seu gerente.
         </div>
       )}
+      {erroQuery === "perfil_nao_encontrado" && (
+        <div className="mb-4 rounded-lg border border-[var(--danger)] bg-red-50 px-4 py-3 text-sm text-[var(--danger)]">
+          Sua conta de login existe, mas o perfil não foi cadastrado.
+          Procure seu gerente ou a gestora master.
+        </div>
+      )}
       {state.erro && (
         <div className="mb-4 rounded-lg border border-[var(--danger)] bg-red-50 px-4 py-3 text-sm text-[var(--danger)]">
           {state.erro}

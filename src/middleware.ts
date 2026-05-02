@@ -35,19 +35,32 @@ export async function middleware(request: NextRequest) {
   }
 
   if (user) {
-    const { data: usuario } = await supabase
+    const { data: usuario, error: usuarioErr } = await supabase
       .from("usuarios")
       .select("primeiro_login, ativo")
       .eq("id", user.id)
       .maybeSingle();
 
-    if (usuario && !usuario.ativo) {
+    // Se o auth existe mas o perfil em public.usuarios não foi achado
+    // (ou a RLS bloqueou o select), força logout pra evitar loop de redirect.
+    if (!usuario || usuarioErr) {
+      console.error("[middleware] perfil nao encontrado para auth.user", {
+        userId: user.id,
+        err: usuarioErr?.message,
+      });
+      await supabase.auth.signOut();
+      const u = new URL("/login", request.url);
+      u.searchParams.set("erro", "perfil_nao_encontrado");
+      return NextResponse.redirect(u);
+    }
+
+    if (!usuario.ativo) {
       await supabase.auth.signOut();
       return NextResponse.redirect(new URL("/login?erro=inativo", request.url));
     }
 
     if (
-      usuario?.primeiro_login &&
+      usuario.primeiro_login &&
       !ROTAS_PRIMEIRO_ACESSO.some((p) => pathname.startsWith(p))
     ) {
       return NextResponse.redirect(new URL("/primeiro-acesso", request.url));
