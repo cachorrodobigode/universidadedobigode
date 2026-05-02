@@ -4,7 +4,7 @@ import { podeVerModulo } from "@/lib/auth/cargo-hierarchy";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 
-type ModuloComProgresso = {
+type Modulo = {
   id: string;
   ordem: number;
   titulo: string;
@@ -13,40 +13,61 @@ type ModuloComProgresso = {
   nivel_minimo: number;
   is_preparativo: boolean;
   trilha_id: string;
-  trilhas: { nome: string } | null;
-  progresso: { status: string; nota_quiz: number | null }[];
 };
 
 export default async function TrilhaPage() {
   const usuario = await getUsuarioAtual();
   if (!usuario) redirect("/login");
 
-  // Usa admin client pra pular RLS recursiva. Filtra manualmente pelo cargo
-  // (a regra "trilha cumulativa" está em podeVerModulo).
   const admin = createSupabaseAdminClient();
   const nivelUsuario = usuario.cargo?.nivel ?? 0;
 
-  const { data: saldo } = await admin
-    .from("saldo_bigocoins")
-    .select("saldo")
-    .eq("usuario_id", usuario.id)
-    .maybeSingle();
+  // Saldo (envolto em try pra não quebrar a página se a view não existir)
+  let saldo = 0;
+  try {
+    const { data } = await admin
+      .from("saldo_bigocoins")
+      .select("saldo")
+      .eq("usuario_id", usuario.id)
+      .maybeSingle();
+    saldo = (data?.saldo as number | undefined) ?? 0;
+  } catch (e) {
+    console.error("[trilha] saldo:", (e as Error).message);
+  }
 
-  const { data: modulosTodos } = await admin
-    .from("modulos")
-    .select(`
-      id, ordem, titulo, descricao, recompensa_bigocoins,
-      nivel_minimo, is_preparativo, trilha_id,
-      trilhas ( nome ),
-      progresso!left ( status, nota_quiz )
-    `)
-    .eq("ativo", true)
-    .order("ordem", { ascending: true })
-    .returns<ModuloComProgresso[]>();
+  // Módulos (sem left join pra evitar resolução ambígua de relação)
+  let modulosTodos: Modulo[] = [];
+  try {
+    const { data, error } = await admin
+      .from("modulos")
+      .select("id, ordem, titulo, descricao, recompensa_bigocoins, nivel_minimo, is_preparativo, trilha_id")
+      .eq("ativo", true)
+      .order("ordem", { ascending: true });
+    if (error) throw error;
+    modulosTodos = (data as Modulo[] | null) ?? [];
+  } catch (e) {
+    console.error("[trilha] modulos:", (e as Error).message);
+  }
 
-  const modulos = (modulosTodos ?? []).filter((m) =>
+  const modulos = modulosTodos.filter((m) =>
     podeVerModulo(nivelUsuario, m.nivel_minimo, m.is_preparativo),
   );
+
+  // Progresso do user atual em uma query separada
+  let progressoMap = new Map<string, string>();
+  if (modulos.length > 0) {
+    try {
+      const { data: progressos } = await admin
+        .from("progresso")
+        .select("modulo_id, status")
+        .eq("usuario_id", usuario.id);
+      for (const p of progressos ?? []) {
+        progressoMap.set(p.modulo_id as string, p.status as string);
+      }
+    } catch (e) {
+      console.error("[trilha] progresso:", (e as Error).message);
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -58,13 +79,13 @@ export default async function TrilhaPage() {
             </p>
             <h1 className="text-2xl font-extrabold text-[var(--fg)] mt-1">Sua trilha</h1>
             <p className="text-sm text-[var(--fg)] mt-1">
-              Cargo: <span className="font-bold">{usuario.cargo?.nome}</span>
+              Cargo: <span className="font-bold">{usuario.cargo?.nome ?? "—"}</span>
             </p>
           </div>
           <div className="text-right">
             <p className="text-xs font-bold uppercase text-[var(--secondary)]">Saldo</p>
             <p className="text-3xl font-extrabold text-[var(--fg)]">
-              {saldo?.saldo ?? 0} <span className="text-lg">🪙</span>
+              {saldo} <span className="text-lg">🪙</span>
             </p>
             <p className="text-xs font-bold text-[var(--secondary)]">Bigocoins</p>
           </div>
@@ -72,17 +93,23 @@ export default async function TrilhaPage() {
       </section>
 
       <section className="space-y-3">
-        {(modulos ?? []).length === 0 ? (
+        {modulos.length === 0 ? (
           <div className="rounded-xl border border-dashed border-[var(--border)] bg-white p-8 text-center">
             <p className="text-4xl mb-2">🐾</p>
             <h3 className="font-bold text-lg">Sua trilha está sendo preparada</h3>
             <p className="text-sm text-[var(--fg-muted)] mt-1">
               A gestora ainda não publicou módulos pro seu cargo. Volte em breve!
             </p>
+            {usuario.is_master && (
+              <p className="text-xs text-[var(--fg-muted)] mt-4">
+                Você é Master — pode criar trilhas em{" "}
+                <Link className="underline" href="/admin/trilhas">/admin/trilhas</Link>.
+              </p>
+            )}
           </div>
         ) : (
-          (modulos ?? []).map((m) => {
-            const concluido = m.progresso?.some((p) => p.status === "concluido");
+          modulos.map((m) => {
+            const concluido = progressoMap.get(m.id) === "concluido";
             return (
               <Link
                 key={m.id}
