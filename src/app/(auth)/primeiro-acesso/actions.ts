@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export type TrocarSenhaState = { erro?: string; ok?: boolean };
 
@@ -29,20 +30,23 @@ export async function trocarSenhaAction(
   const { data: userData } = await supabase.auth.getUser();
   if (!userData.user) return { erro: "Sessão expirada. Faça login novamente." };
 
-  // Verifica que a senha nova não é o próprio CPF
-  const { data: usuario } = await supabase
+  // Lê CPF do user via ADMIN client (bypass RLS pra evitar recursão).
+  const admin = createSupabaseAdminClient();
+  const { data: usuario } = await admin
     .from("usuarios")
     .select("cpf")
     .eq("id", userData.user.id)
-    .single();
+    .maybeSingle();
   if (usuario?.cpf && novaSenha.replace(/\D/g, "") === usuario.cpf) {
     return { erro: "A nova senha não pode ser o seu CPF." };
   }
 
+  // Atualiza a senha via Supabase Auth (precisa do JWT do user, não admin).
   const { error: updErr } = await supabase.auth.updateUser({ password: novaSenha });
-  if (updErr) return { erro: "Não foi possível trocar agora. Tente novamente." };
+  if (updErr) return { erro: `Não foi possível trocar agora: ${updErr.message}` };
 
-  await supabase.from("usuarios").update({ primeiro_login: false }).eq("id", userData.user.id);
+  // Marca primeiro_login=false via admin (bypass RLS).
+  await admin.from("usuarios").update({ primeiro_login: false }).eq("id", userData.user.id);
 
   redirect("/trilha");
 }
