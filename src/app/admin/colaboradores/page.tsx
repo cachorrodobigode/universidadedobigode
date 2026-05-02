@@ -3,6 +3,7 @@ import { CadastrarColaboradorForm } from "./CadastrarColaboradorForm";
 import { getUsuarioAtual } from "@/lib/auth/getUsuarioAtual";
 import { redirect } from "next/navigation";
 import { formatarCpf } from "@/lib/auth/cpf-email";
+import Link from "next/link";
 
 export default async function CadastrarColaboradorPage() {
   const usuario = await getUsuarioAtual();
@@ -49,6 +50,7 @@ export default async function CadastrarColaboradorPage() {
                 <th className="py-2 pr-4 font-bold">Cargo</th>
                 <th className="py-2 pr-4 font-bold">Loja</th>
                 <th className="py-2 pr-4 font-bold">Status</th>
+                <th className="py-2 pr-4 font-bold">Editar</th>
               </tr>
             </thead>
             <tbody>
@@ -73,11 +75,21 @@ export default async function CadastrarColaboradorPage() {
                       </span>
                     )}
                   </td>
+                  <td className="py-2 pr-4">
+                    {c.id !== usuario.id && (
+                      <Link
+                        href={`/admin/usuarios/${c.id}`}
+                        className="text-xs font-bold rounded-md border border-[var(--border)] bg-white px-3 py-1.5 hover:bg-[var(--bg)]"
+                      >
+                        ✏️
+                      </Link>
+                    )}
+                  </td>
                 </tr>
               ))}
               {(colabs ?? []).length === 0 && (
                 <tr>
-                  <td colSpan={5} className="py-6 text-center text-[var(--fg-muted)]">
+                  <td colSpan={6} className="py-6 text-center text-[var(--fg-muted)]">
                     Nenhum colaborador cadastrado ainda.
                   </td>
                 </tr>

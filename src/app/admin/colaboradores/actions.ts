@@ -133,6 +133,184 @@ export async function cadastrarColaboradorAction(
   return { ok: `Colaborador ${nome} cadastrado! Senha inicial = CPF (sem pontos).` };
 }
 
+/* ===================================================================
+ * EDITAR USUÁRIO
+ *
+ * Regras de permissão:
+ * - MASTER pode editar qualquer usuário, atribuir qualquer cargo
+ *   (inclusive Master/Franqueado), mexer em lojas e ativo.
+ * - FRANQUEADO / GERENTE pode editar SÓ usuários cuja loja_id atual
+ *   está no conjunto das lojas que ele cobre, e SÓ pode atribuir
+ *   cargos com nível ESTRITAMENTE menor que o dele. Não pode reativar
+ *   alguém de outra loja.
+ * =================================================================== */
+export type EditarUsuarioState = { erro?: string; ok?: string };
+
+export async function editarUsuarioAction(
+  _prev: EditarUsuarioState,
+  formData: FormData,
+): Promise<EditarUsuarioState> {
+  const usuario_id = String(formData.get("usuario_id") ?? "");
+  const nome = String(formData.get("nome") ?? "").trim();
+  const cargo_id = String(formData.get("cargo_id") ?? "");
+  const loja_id = String(formData.get("loja_id") ?? "") || null;
+  const lojasExtrasRaw = String(formData.get("lojas_extras") ?? "[]");
+  let lojas_extras: string[] = [];
+  try { lojas_extras = JSON.parse(lojasExtrasRaw); } catch { lojas_extras = []; }
+
+  if (!usuario_id) return { erro: "Usuário não informado." };
+  if (nome.length < 3) return { erro: "Nome muito curto." };
+  if (!cargo_id) return { erro: "Escolhe um cargo." };
+
+  const supabase = await createSupabaseServerClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { erro: "Sessão expirada." };
+
+  const admin = createSupabaseAdminClient();
+
+  // Quem está editando + nível do cargo dele
+  const { data: meu } = await admin
+    .from("usuarios")
+    .select("is_master, is_gerente, loja_id, cargo:cargos(nivel)")
+    .eq("id", user.id)
+    .maybeSingle();
+  if (!meu) return { erro: "Sessão inválida." };
+  const meuNivel = ((meu.cargo as unknown as { nivel?: number })?.nivel) ?? 0;
+
+  if (!meu.is_master && !meu.is_gerente) {
+    return { erro: "Sem permissão pra editar usuários." };
+  }
+
+  // Usuário sendo editado
+  const { data: alvo } = await admin
+    .from("usuarios")
+    .select("id, loja_id, is_master, cargo:cargos(nivel)")
+    .eq("id", usuario_id)
+    .maybeSingle();
+  if (!alvo) return { erro: "Usuário não encontrado." };
+
+  // Cargo novo
+  const { data: cargoNovo } = await admin
+    .from("cargos").select("nivel").eq("id", cargo_id).maybeSingle();
+  if (!cargoNovo) return { erro: "Cargo inválido." };
+  const novoNivel = (cargoNovo.nivel as number) ?? 0;
+
+  // Regras pra não-master
+  if (!meu.is_master) {
+    if (alvo.is_master) {
+      return { erro: "Você não pode editar um Master." };
+    }
+    // Loja atual do alvo precisa estar nas suas lojas
+    const minhasLojas = new Set<string>();
+    if (meu.loja_id) minhasLojas.add(meu.loja_id as string);
+    const { data: extras } = await admin
+      .from("usuario_lojas").select("loja_id").eq("usuario_id", user.id);
+    for (const e of extras ?? []) minhasLojas.add(e.loja_id as string);
+    if (!alvo.loja_id || !minhasLojas.has(alvo.loja_id as string)) {
+      return { erro: "Esse colaborador não está nas suas lojas." };
+    }
+    // Loja nova também precisa estar nas suas
+    if (!loja_id || !minhasLojas.has(loja_id)) {
+      return { erro: "Você só pode mover pra uma das suas lojas." };
+    }
+    // Cargo novo precisa ter nível < seu próprio nível
+    if (novoNivel >= meuNivel) {
+      return { erro: "Você não pode atribuir esse cargo (precisa ser menor que o seu)." };
+    }
+  }
+
+  // Recalcula is_gerente pelo cargo novo
+  const ehGerenteImplicito = novoNivel >= NIVEL_CARGO.SUPERVISOR && novoNivel < NIVEL_CARGO.MASTER;
+  const ehMasterImplicito = novoNivel >= NIVEL_CARGO.MASTER;
+
+  // Atualiza perfil
+  const { error: upErr } = await admin
+    .from("usuarios")
+    .update({
+      nome,
+      cargo_id,
+      loja_id,
+      is_gerente: ehGerenteImplicito || ehMasterImplicito,
+      // is_master: só master pode marcar como master
+      ...(meu.is_master ? { is_master: ehMasterImplicito } : {}),
+    })
+    .eq("id", usuario_id);
+  if (upErr) return { erro: `Erro: ${upErr.message}` };
+
+  // Sincroniza lojas extras (apaga todas e re-insere) — só pra cargos elevados
+  const podeMultiLoja = novoNivel >= NIVEL_CARGO.SUPERVISOR;
+  await admin.from("usuario_lojas").delete().eq("usuario_id", usuario_id);
+  if (podeMultiLoja && lojas_extras.length > 0) {
+    const linhas = lojas_extras
+      .filter((id) => id && id !== loja_id)
+      .map((id) => ({ usuario_id, loja_id: id }));
+    if (linhas.length > 0) {
+      await admin.from("usuario_lojas").insert(linhas);
+    }
+  }
+
+  await admin.from("audit_log").insert({
+    usuario_id: user.id,
+    acao: "edit_user",
+    entidade: "usuarios",
+    entidade_id: usuario_id,
+    metadata: { nome, cargo_id, loja_id, lojas_extras },
+  });
+
+  revalidatePath("/admin/usuarios");
+  revalidatePath("/admin/colaboradores");
+  revalidatePath(`/admin/usuarios/${usuario_id}`);
+
+  return { ok: "Usuário atualizado com sucesso." };
+}
+
+export async function toggleAtivoUsuarioAction(
+  _prev: EditarUsuarioState,
+  formData: FormData,
+): Promise<EditarUsuarioState> {
+  const usuario_id = String(formData.get("usuario_id") ?? "");
+  const novoEstado = String(formData.get("ativo") ?? "true") === "true";
+  if (!usuario_id) return { erro: "Usuário não informado." };
+
+  const supabase = await createSupabaseServerClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { erro: "Sessão expirada." };
+
+  const admin = createSupabaseAdminClient();
+  const { data: meu } = await admin
+    .from("usuarios").select("is_master, is_gerente, loja_id").eq("id", user.id).maybeSingle();
+  const { data: alvo } = await admin
+    .from("usuarios").select("loja_id, is_master").eq("id", usuario_id).maybeSingle();
+  if (!alvo) return { erro: "Usuário não encontrado." };
+  if (alvo.is_master) return { erro: "Não dá pra desativar um Master." };
+
+  if (!meu?.is_master) {
+    if (!meu?.is_gerente) return { erro: "Sem permissão." };
+    const minhasLojas = new Set<string>();
+    if (meu.loja_id) minhasLojas.add(meu.loja_id as string);
+    const { data: extras } = await admin
+      .from("usuario_lojas").select("loja_id").eq("usuario_id", user.id);
+    for (const e of extras ?? []) minhasLojas.add(e.loja_id as string);
+    if (!alvo.loja_id || !minhasLojas.has(alvo.loja_id as string)) {
+      return { erro: "Esse colaborador não está nas suas lojas." };
+    }
+  }
+
+  const { error } = await admin.from("usuarios").update({ ativo: novoEstado }).eq("id", usuario_id);
+  if (error) return { erro: error.message };
+
+  await admin.from("audit_log").insert({
+    usuario_id: user.id,
+    acao: novoEstado ? "activate_user" : "deactivate_user",
+    entidade: "usuarios",
+    entidade_id: usuario_id,
+  });
+
+  revalidatePath("/admin/usuarios");
+  revalidatePath("/admin/colaboradores");
+  return { ok: novoEstado ? "Usuário reativado." : "Usuário inativado." };
+}
+
 export type ResetarSenhaState = { erro?: string; ok?: string };
 
 export async function resetarSenhaAction(

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getUsuarioAtual } from "@/lib/auth/getUsuarioAtual";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -6,20 +7,36 @@ import { ResetarSenhaButton } from "./ResetarSenhaButton";
 
 export default async function UsuariosPage() {
   const usuario = await getUsuarioAtual();
-  if (!usuario?.is_master) redirect("/admin/colaboradores");
+  if (!usuario || (!usuario.is_master && !usuario.is_gerente)) redirect("/trilha");
 
   const admin = createSupabaseAdminClient();
-  const { data: usuarios } = await admin
+
+  // Master vê todos. Gerente/Franqueado vê só os usuários das suas lojas.
+  const { data: usuariosBruto } = await admin
     .from("usuarios")
-    .select("id, nome, cpf, ativo, primeiro_login, is_master, is_gerente, cargo:cargos(nome, nivel), loja:lojas!loja_id(nome)")
+    .select("id, nome, cpf, ativo, primeiro_login, is_master, is_gerente, loja_id, cargo:cargos(nome, nivel), loja:lojas!loja_id(nome)")
     .order("nome");
+
+  let usuarios = usuariosBruto ?? [];
+  if (!usuario.is_master) {
+    const minhasLojas = new Set<string>();
+    if (usuario.loja_id) minhasLojas.add(usuario.loja_id);
+    const { data: extras } = await admin
+      .from("usuario_lojas").select("loja_id").eq("usuario_id", usuario.id);
+    for (const e of extras ?? []) minhasLojas.add(e.loja_id as string);
+    usuarios = usuarios.filter((u) =>
+      u.loja_id && minhasLojas.has(u.loja_id as string),
+    );
+  }
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-extrabold">Todos os usuários</h1>
+        <h1 className="text-2xl font-extrabold">
+          {usuario.is_master ? "Todos os usuários" : "Usuários das suas lojas"}
+        </h1>
         <p className="text-sm text-[var(--fg-muted)]">
-          Lista geral de quem tem acesso ao app. Pra cadastrar novo, use
+          Lista de quem tem acesso ao app. Pra cadastrar novo, use
           {" "}<a className="underline" href="/admin/colaboradores">Cadastrar colaborador</a>.
         </p>
       </div>
@@ -34,11 +51,11 @@ export default async function UsuariosPage() {
               <th className="py-2 pr-4 font-bold">Loja</th>
               <th className="py-2 pr-4 font-bold">Tipo</th>
               <th className="py-2 pr-4 font-bold">Status</th>
-              <th className="py-2 pr-4 font-bold">Ação</th>
+              <th className="py-2 pr-4 font-bold">Ações</th>
             </tr>
           </thead>
           <tbody>
-            {(usuarios ?? []).map((u) => {
+            {usuarios.map((u) => {
               const cargo = (u.cargo as unknown as { nome?: string })?.nome ?? "-";
               const loja = (u.loja as unknown as { nome?: string })?.nome ?? "-";
               return (
@@ -66,15 +83,25 @@ export default async function UsuariosPage() {
                     )}
                   </td>
                   <td className="py-3 pr-4">
-                    {u.id !== usuario.id && (
-                      <ResetarSenhaButton usuarioId={u.id as string} nome={u.nome as string} />
-                    )}
+                    <div className="flex flex-wrap gap-1.5">
+                      {u.id !== usuario.id && (!u.is_master || usuario.is_master) && (
+                        <Link
+                          href={`/admin/usuarios/${u.id}`}
+                          className="text-xs font-bold rounded-md border border-[var(--border)] bg-white px-3 py-1.5 hover:bg-[var(--bg)]"
+                        >
+                          ✏️ Editar
+                        </Link>
+                      )}
+                      {u.id !== usuario.id && !u.is_master && (
+                        <ResetarSenhaButton usuarioId={u.id as string} nome={u.nome as string} />
+                      )}
+                    </div>
                   </td>
                 </tr>
               );
             })}
-            {(usuarios ?? []).length === 0 && (
-              <tr><td colSpan={7} className="py-6 text-center text-[var(--fg-muted)]">Nenhum usuário cadastrado.</td></tr>
+            {usuarios.length === 0 && (
+              <tr><td colSpan={7} className="py-6 text-center text-[var(--fg-muted)]">Nenhum usuário cadastrado nas suas lojas ainda.</td></tr>
             )}
           </tbody>
         </table>
