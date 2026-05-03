@@ -6,6 +6,7 @@ import { NOME_POR_NIVEL } from "@/lib/auth/cargo-hierarchy";
 import { AddModuloForm } from "./AddModuloForm";
 import { AddConteudoForm } from "./AddConteudoForm";
 import { EditarTrilhaForm } from "./EditarTrilhaForm";
+import { QuizEditor } from "./QuizEditor";
 import { DeletarModuloButton, DeletarConteudoButton, DeletarTrilhaButton } from "./Botoes";
 
 type Conteudo = {
@@ -16,6 +17,10 @@ type Conteudo = {
   ordem: number;
 };
 
+type Alternativa = { id: string; texto: string; correta: boolean; ordem: number };
+type Pergunta = { id: string; pergunta: string; ordem: number; alternativas: Alternativa[] };
+type QuizDb = { id: string; nota_minima: number; perguntas: Pergunta[] };
+
 type Modulo = {
   id: string;
   ordem: number;
@@ -25,6 +30,7 @@ type Modulo = {
   nivel_minimo: number;
   is_preparativo: boolean;
   conteudos: Conteudo[];
+  quiz: QuizDb | QuizDb[] | null;
 };
 
 export default async function TrilhaDetalhePage({
@@ -56,7 +62,14 @@ export default async function TrilhaDetalhePage({
     .select(`
       id, ordem, titulo, descricao, recompensa_bigocoins,
       nivel_minimo, is_preparativo,
-      conteudos ( id, tipo, url, titulo, ordem )
+      conteudos ( id, tipo, url, titulo, ordem ),
+      quiz:quizzes (
+        id, nota_minima,
+        perguntas:quiz_perguntas (
+          id, pergunta, ordem,
+          alternativas:quiz_alternativas ( id, texto, correta, ordem )
+        )
+      )
     `)
     .eq("trilha_id", id)
     .order("ordem", { ascending: true })
@@ -156,6 +169,20 @@ export default async function TrilhaDetalhePage({
                 )}
                 <AddConteudoForm moduloId={m.id} trilhaId={trilha.id as string} />
               </div>
+
+              <QuizEditor
+                moduloId={m.id}
+                trilhaId={trilha.id as string}
+                quiz={(() => {
+                  const q = Array.isArray(m.quiz) ? m.quiz[0] : m.quiz;
+                  if (!q) return null;
+                  return {
+                    id: q.id,
+                    nota_minima: q.nota_minima,
+                    perguntas: q.perguntas ?? [],
+                  };
+                })()}
+              />
             </div>
           ))
         )}

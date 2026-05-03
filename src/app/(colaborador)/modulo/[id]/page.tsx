@@ -7,6 +7,7 @@ import { formatarCpf } from "@/lib/auth/cpf-email";
 import { VideoYouTubeProtegido } from "@/components/VideoYouTubeProtegido";
 import { VideoUploadProtegido } from "@/components/VideoUploadProtegido";
 import { ConcluirModuloForm } from "./ConcluirModuloForm";
+import { QuizPlayer } from "./QuizPlayer";
 
 type Conteudo = {
   id: string;
@@ -15,6 +16,10 @@ type Conteudo = {
   titulo: string | null;
   ordem: number;
 };
+
+type Alternativa = { id: string; texto: string; ordem: number };
+type Pergunta = { id: string; pergunta: string; ordem: number; alternativas: Alternativa[] };
+type QuizDb = { id: string; nota_minima: number; perguntas: Pergunta[] };
 
 type ModuloComConteudos = {
   id: string;
@@ -26,6 +31,7 @@ type ModuloComConteudos = {
   ativo: boolean;
   trilha: { nome: string } | null;
   conteudos: Conteudo[];
+  quiz: QuizDb | QuizDb[] | null;
 };
 
 export default async function ModuloPage({
@@ -44,7 +50,14 @@ export default async function ModuloPage({
     .select(`
       id, titulo, descricao, recompensa_bigocoins, nivel_minimo, is_preparativo, ativo,
       trilha:trilhas(nome),
-      conteudos(id, tipo, url, titulo, ordem)
+      conteudos(id, tipo, url, titulo, ordem),
+      quiz:quizzes(
+        id, nota_minima,
+        perguntas:quiz_perguntas(
+          id, pergunta, ordem,
+          alternativas:quiz_alternativas(id, texto, ordem)
+        )
+      )
     `)
     .eq("id", id)
     .maybeSingle()
@@ -126,24 +139,43 @@ export default async function ModuloPage({
         </div>
       )}
 
-      <div className="rounded-xl bg-white border border-[var(--border)] p-6">
-        {concluido ? (
-          <div className="flex items-center gap-3">
-            <span className="text-3xl">✅</span>
-            <div>
-              <p className="font-bold">Você já concluiu esse módulo!</p>
-              <p className="text-xs text-[var(--fg-muted)]">
-                Já recebeu {data.recompensa_bigocoins} 🪙 Bigocoins por isso.
-              </p>
-            </div>
+      {(() => {
+        const quizDb = Array.isArray(data.quiz) ? data.quiz[0] : data.quiz;
+        const temQuiz = quizDb && (quizDb.perguntas?.length ?? 0) > 0;
+
+        if (temQuiz) {
+          return (
+            <QuizPlayer
+              moduloId={data.id}
+              notaMinima={quizDb!.nota_minima}
+              perguntas={quizDb!.perguntas ?? []}
+              jaConcluido={concluido}
+              recompensa={data.recompensa_bigocoins}
+            />
+          );
+        }
+
+        return (
+          <div className="rounded-xl bg-white border border-[var(--border)] p-6">
+            {concluido ? (
+              <div className="flex items-center gap-3">
+                <span className="text-3xl">✅</span>
+                <div>
+                  <p className="font-bold">Você já concluiu esse módulo!</p>
+                  <p className="text-xs text-[var(--fg-muted)]">
+                    Já recebeu {data.recompensa_bigocoins} 🪙 Bigocoins por isso.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <ConcluirModuloForm
+                moduloId={data.id}
+                recompensa={data.recompensa_bigocoins}
+              />
+            )}
           </div>
-        ) : (
-          <ConcluirModuloForm
-            moduloId={data.id}
-            recompensa={data.recompensa_bigocoins}
-          />
-        )}
-      </div>
+        );
+      })()}
     </div>
   );
 }
