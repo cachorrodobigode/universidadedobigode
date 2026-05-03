@@ -3,6 +3,13 @@ import { redirect } from "next/navigation";
 import { getUsuarioAtual } from "@/lib/auth/getUsuarioAtual";
 import { Logout } from "@/components/Logout";
 
+const TABS = [
+  { href: "/trilha", label: "Trilha", icon: "🐾" },
+  { href: "/ranking", label: "Ranking", icon: "🏆" },
+  { href: "/loja-de-brindes", label: "Brindes", icon: "🎁" },
+  { href: "/perfil", label: "Perfil", icon: "👤" },
+];
+
 export default async function ColaboradorLayout({
   children,
 }: { children: React.ReactNode }) {
@@ -12,13 +19,27 @@ export default async function ColaboradorLayout({
   return (
     <div className="flex flex-col min-h-screen">
       <header className="bg-[var(--primary)] text-[var(--primary-fg)] shadow-md">
-        <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
+        <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between flex-wrap gap-2">
           <Link href="/trilha" className="flex items-center gap-2 font-extrabold text-lg">
             <span className="text-2xl">🎓</span>
             <span>Universidade do Bigode</span>
           </Link>
-          <div className="flex items-center gap-4 text-sm">
-            <span className="hidden sm:inline">
+
+          {/* Nav desktop (oculta no mobile, que tem nav inferior) */}
+          <nav className="hidden sm:flex items-center gap-1">
+            {TABS.map((tab) => (
+              <Link
+                key={tab.href}
+                href={tab.href}
+                className="rounded-md px-3 py-1.5 text-sm font-semibold hover:bg-white/15 transition"
+              >
+                <span className="mr-1">{tab.icon}</span>{tab.label}
+              </Link>
+            ))}
+          </nav>
+
+          <div className="flex items-center gap-3 text-sm">
+            <span className="hidden lg:inline">
               {usuario.nome.split(" ")[0]} · {usuario.cargo?.nome}
             </span>
             {(usuario.is_master || usuario.is_gerente) && (
@@ -38,13 +59,9 @@ export default async function ColaboradorLayout({
         {children}
       </main>
 
+      {/* Nav inferior só no mobile */}
       <nav className="fixed bottom-0 left-0 right-0 sm:hidden bg-white border-t border-[var(--border)] flex">
-        {[
-          { href: "/trilha", label: "Trilha", icon: "🐾" },
-          { href: "/ranking", label: "Ranking", icon: "🏆" },
-          { href: "/loja-de-brindes", label: "Brindes", icon: "🎁" },
-          { href: "/perfil", label: "Perfil", icon: "👤" },
-        ].map((tab) => (
+        {TABS.map((tab) => (
           <Link
             key={tab.href}
             href={tab.href}

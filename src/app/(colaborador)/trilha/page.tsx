@@ -3,6 +3,7 @@ import { getUsuarioAtual } from "@/lib/auth/getUsuarioAtual";
 import { podeVerModulo } from "@/lib/auth/cargo-hierarchy";
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import { ComoFuncionaCard } from "@/components/ComoFuncionaCard";
 
 type Modulo = {
   id: string;
@@ -71,6 +72,8 @@ export default async function TrilhaPage() {
 
   return (
     <div className="space-y-6">
+      <ComoFuncionaCard />
+
       <section className="rounded-2xl bg-gradient-to-br from-[var(--accent)] to-[#FFD970] p-6 shadow-md">
         <div className="flex items-center justify-between">
           <div>
