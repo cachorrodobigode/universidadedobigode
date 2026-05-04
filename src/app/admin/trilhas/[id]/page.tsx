@@ -6,12 +6,13 @@ import { NOME_POR_NIVEL } from "@/lib/auth/cargo-hierarchy";
 import { AddModuloForm } from "./AddModuloForm";
 import { AddConteudoForm } from "./AddConteudoForm";
 import { EditarTrilhaForm } from "./EditarTrilhaForm";
+import { EditarModuloForm } from "./EditarModuloForm";
 import { QuizEditor } from "./QuizEditor";
 import { DeletarModuloButton, DeletarConteudoButton, DeletarTrilhaButton } from "./Botoes";
 
 type Conteudo = {
   id: string;
-  tipo: "video_youtube" | "pdf";
+  tipo: "video_youtube" | "video_upload" | "pdf" | "imagem";
   url: string;
   titulo: string | null;
   ordem: number;
@@ -29,6 +30,7 @@ type Modulo = {
   recompensa_bigocoins: number;
   nivel_minimo: number;
   is_preparativo: boolean;
+  ativo: boolean;
   conteudos: Conteudo[];
   quiz: QuizDb | QuizDb[] | null;
 };
@@ -61,7 +63,7 @@ export default async function TrilhaDetalhePage({
     .from("modulos")
     .select(`
       id, ordem, titulo, descricao, recompensa_bigocoins,
-      nivel_minimo, is_preparativo,
+      nivel_minimo, is_preparativo, ativo,
       conteudos ( id, tipo, url, titulo, ordem ),
       quiz:quizzes (
         id, nota_minima,
@@ -143,7 +145,21 @@ export default async function TrilhaDetalhePage({
                     <p className="text-sm text-[var(--fg-muted)] mt-1">{m.descricao}</p>
                   )}
                 </div>
-                <DeletarModuloButton id={m.id} trilhaId={trilha.id as string} titulo={m.titulo} />
+                <div className="flex flex-col gap-2 items-end shrink-0">
+                  <EditarModuloForm
+                    modulo={{
+                      id: m.id,
+                      titulo: m.titulo,
+                      descricao: m.descricao,
+                      recompensa_bigocoins: m.recompensa_bigocoins,
+                      nivel_minimo: m.nivel_minimo,
+                      is_preparativo: m.is_preparativo,
+                      ativo: m.ativo,
+                    }}
+                    trilhaId={trilha.id as string}
+                  />
+                  <DeletarModuloButton id={m.id} trilhaId={trilha.id as string} titulo={m.titulo} />
+                </div>
               </div>
 
               <div className="border-t border-[var(--border)] pt-3 mt-3 space-y-2">
@@ -151,20 +167,30 @@ export default async function TrilhaDetalhePage({
                   Conteúdos ({m.conteudos?.length ?? 0})
                 </p>
                 {(m.conteudos ?? []).length === 0 ? (
-                  <p className="text-xs text-[var(--fg-muted)] italic">Nenhum vídeo ainda.</p>
+                  <p className="text-xs text-[var(--fg-muted)] italic">Nenhum conteúdo ainda.</p>
                 ) : (
                   <ul className="space-y-1.5">
                     {m.conteudos
                       .sort((a, b) => a.ordem - b.ordem)
-                      .map((c) => (
-                        <li key={c.id} className="flex items-center gap-3 text-sm">
-                          <span className="text-base">🎬</span>
-                          <span className="font-mono text-xs flex-1 truncate">
-                            {c.titulo || `youtu.be/${c.url}`}
-                          </span>
-                          <DeletarConteudoButton id={c.id} trilhaId={trilha.id as string} />
-                        </li>
-                      ))}
+                      .map((c) => {
+                        const icone =
+                          c.tipo === "video_youtube" ? "🔗" :
+                          c.tipo === "video_upload" ? "🎬" :
+                          c.tipo === "imagem" ? "🖼️" :
+                          c.tipo === "pdf" ? "📄" : "📦";
+                        const desc =
+                          c.tipo === "video_youtube" ? `youtu.be/${c.url}` :
+                          c.url.split("/").pop() || c.url;
+                        return (
+                          <li key={c.id} className="flex items-center gap-3 text-sm">
+                            <span className="text-base">{icone}</span>
+                            <span className="font-mono text-xs flex-1 truncate">
+                              {c.titulo || desc}
+                            </span>
+                            <DeletarConteudoButton id={c.id} trilhaId={trilha.id as string} />
+                          </li>
+                        );
+                      })}
                   </ul>
                 )}
                 <AddConteudoForm moduloId={m.id} trilhaId={trilha.id as string} />

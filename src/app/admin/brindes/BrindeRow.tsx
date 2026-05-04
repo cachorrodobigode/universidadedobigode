@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useState, useTransition } from "react";
 import { editarBrindeAction, toggleAtivoBrindeAction, type BrindeState } from "./actions";
+import { UploadFotoInput } from "./UploadFotoInput";
 import { toast } from "sonner";
 
 const inicial: BrindeState = {};
@@ -94,10 +95,10 @@ export function BrindeRow({ brinde }: { brinde: Brinde }) {
               <span className="text-xs font-semibold">Estoque</span>
               <input type="number" name="estoque" min={0} defaultValue={brinde.estoque} className="rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm" />
             </label>
-            <label className="flex flex-col gap-1 md:col-span-2">
-              <span className="text-xs font-semibold">URL da foto</span>
-              <input name="foto_url" type="url" defaultValue={brinde.foto_url ?? ""} className="rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm" />
-            </label>
+            <div className="md:col-span-2 space-y-1">
+              <span className="text-xs font-semibold block">Foto</span>
+              <UploadFotoInput defaultUrl={brinde.foto_url} />
+            </div>
           </div>
           <div className="flex gap-2">
             <button type="submit" disabled={pending} className="text-sm font-bold rounded-lg bg-[var(--primary)] text-[var(--primary-fg)] px-4 py-2 disabled:opacity-50">

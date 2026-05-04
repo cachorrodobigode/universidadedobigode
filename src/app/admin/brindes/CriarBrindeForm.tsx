@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useRef } from "react";
 import { criarBrindeAction, type BrindeState } from "./actions";
+import { UploadFotoInput } from "./UploadFotoInput";
 import { toast } from "sonner";
 
 const inicial: BrindeState = {};
@@ -68,18 +69,13 @@ export function CriarBrindeForm() {
           />
         </label>
 
-        <label className="flex flex-col gap-1 md:col-span-2">
-          <span className="text-sm font-semibold">URL da foto (opcional)</span>
-          <input
-            name="foto_url"
-            type="url"
-            placeholder="https://..."
-            className="rounded-lg border border-[var(--border)] bg-white px-3 py-2 focus:border-[var(--primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
-          />
+        <div className="md:col-span-2 space-y-1">
+          <span className="text-sm font-semibold block">Foto (opcional)</span>
+          <UploadFotoInput />
           <span className="text-xs text-[var(--fg-muted)]">
-            Cole o link de uma imagem (Drive, Imgur, etc). Upload direto vem na próxima fase.
+            Envie um arquivo (até 5MB) ou cole a URL de uma imagem.
           </span>
-        </label>
+        </div>
       </div>
 
       <button

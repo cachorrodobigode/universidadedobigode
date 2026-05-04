@@ -33,12 +33,13 @@ export default async function RelatoriosPage() {
     lojasIdsVisiveis = Array.from(ids);
   }
 
-  // Top colaboradores (excluindo Master e Franqueadora)
+  // Só colaboradores operacionais entram (nivel < GERENTE).
+  // Gerentes, Franqueados, Franqueadoras e Master ficam fora do ranking.
   let queryRanking = admin
     .from("ranking_colaboradores")
     .select("usuario_id, nome, loja_id, loja_nome, cargo_nome, cargo_nivel, bigocoins_ganhos, modulos_concluidos")
     .eq("ativo", true)
-    .lt("cargo_nivel", NIVEL_CARGO.FRANQUEADORA)
+    .lt("cargo_nivel", NIVEL_CARGO.GERENTE)
     .order("bigocoins_ganhos", { ascending: false })
     .order("modulos_concluidos", { ascending: false });
 
@@ -86,7 +87,25 @@ export default async function RelatoriosPage() {
   const rankingLojas = Array.from(porLojaMap.values())
     .sort((a, b) => b.bigocoins - a.bigocoins);
 
-  const top10 = linhas.slice(0, 10);
+  // Agrupa por cargo
+  const porCargo = new Map<number, LinhaUser[]>();
+  for (const l of linhas) {
+    if (!porCargo.has(l.cargo_nivel)) porCargo.set(l.cargo_nivel, []);
+    porCargo.get(l.cargo_nivel)!.push(l);
+  }
+  const niveisOrdenados = [...porCargo.keys()].sort((a, b) => a - b);
+
+  // Por loja → por cargo
+  const porLojaECargo = new Map<string, { loja_nome: string; cargos: Map<number, LinhaUser[]> }>();
+  for (const l of linhas) {
+    if (!l.loja_id) continue;
+    if (!porLojaECargo.has(l.loja_id)) {
+      porLojaECargo.set(l.loja_id, { loja_nome: l.loja_nome, cargos: new Map() });
+    }
+    const lojaG = porLojaECargo.get(l.loja_id)!;
+    if (!lojaG.cargos.has(l.cargo_nivel)) lojaG.cargos.set(l.cargo_nivel, []);
+    lojaG.cargos.get(l.cargo_nivel)!.push(l);
+  }
 
   return (
     <div className="space-y-6">
@@ -115,73 +134,113 @@ export default async function RelatoriosPage() {
         ))}
       </div>
 
-      {/* Top 10 colaboradores */}
+      {/* Top 3 da rede por cargo */}
       <div className="rounded-xl bg-white border border-[var(--border)] p-4 md:p-6">
-        <h2 className="font-bold mb-3">🏆 Top 10 colaboradores</h2>
-        {top10.length === 0 ? (
-          <p className="text-sm text-[var(--fg-muted)]">Nenhum colaborador concluiu módulo ainda.</p>
+        <h2 className="font-bold mb-3">🌟 Top 3 da rede por cargo</h2>
+        {niveisOrdenados.length === 0 ? (
+          <p className="text-sm text-[var(--fg-muted)] italic">
+            Nenhum colaborador concluiu módulo ainda.
+          </p>
         ) : (
-          <ol className="divide-y divide-[var(--border)]">
-            {top10.map((l, i) => {
-              const medalha = i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `${i + 1}º`;
+          <div className="space-y-4">
+            {niveisOrdenados.map((nivel) => {
+              const top3 = (porCargo.get(nivel) ?? []).slice(0, 3);
+              const cargoNome = top3[0]?.cargo_nome ?? "—";
               return (
-                <li key={l.usuario_id} className="py-3 flex items-center gap-3">
-                  <span className="w-8 text-center font-extrabold">{medalha}</span>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-bold text-sm truncate">{l.nome}</p>
-                    <p className="text-xs text-[var(--fg-muted)] truncate">
-                      {l.cargo_nome} · {l.loja_nome}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-extrabold text-sm">{l.bigocoins_ganhos} 🪙</p>
-                    <p className="text-xs text-[var(--fg-muted)]">{l.modulos_concluidos} módulos</p>
-                  </div>
-                </li>
+                <div key={nivel}>
+                  <p className="text-xs font-bold uppercase text-[var(--fg-muted)] mb-1.5">
+                    {cargoNome}
+                  </p>
+                  <ol className="space-y-1">
+                    {top3.map((l, i) => (
+                      <li key={l.usuario_id} className="flex items-center gap-2 text-sm bg-[var(--bg)] rounded p-2">
+                        <span className="font-extrabold w-6 text-center">
+                          {i === 0 ? "🥇" : i === 1 ? "🥈" : "🥉"}
+                        </span>
+                        <span className="flex-1 truncate">{l.nome}</span>
+                        <span className="text-xs text-[var(--fg-muted)] hidden sm:inline">{l.loja_nome}</span>
+                        <span className="font-bold">{l.bigocoins_ganhos} 🪙</span>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
               );
             })}
-          </ol>
+          </div>
         )}
       </div>
 
-      {/* Ranking por loja */}
-      {(acessoTotal || (lojasIdsVisiveis && lojasIdsVisiveis.length > 1)) && (
+      {/* Cada loja com seus cargos */}
+      {porLojaECargo.size > 0 && (
+        <div className="space-y-4">
+          <h2 className="font-bold text-lg">🏪 Por loja, separado por cargo</h2>
+          {[...porLojaECargo.entries()].map(([lojaId, lojaG]) => {
+            const niveisLoja = [...lojaG.cargos.keys()].sort((a, b) => a - b);
+            return (
+              <div key={lojaId} className="rounded-xl bg-white border border-[var(--border)] p-4 md:p-6">
+                <h3 className="font-bold mb-3">{lojaG.loja_nome}</h3>
+                <div className="space-y-3">
+                  {niveisLoja.map((nivel) => {
+                    const top5 = (lojaG.cargos.get(nivel) ?? []).slice(0, 5);
+                    return (
+                      <div key={nivel}>
+                        <p className="text-xs font-bold uppercase text-[var(--fg-muted)] mb-1">
+                          {top5[0]?.cargo_nome}
+                        </p>
+                        <ol className="space-y-1">
+                          {top5.map((l, i) => (
+                            <li key={l.usuario_id} className="flex items-center gap-2 text-sm bg-[var(--bg)] rounded p-1.5">
+                              <span className="font-extrabold w-6 text-center text-xs">{i + 1}º</span>
+                              <span className="flex-1 truncate">{l.nome}</span>
+                              <span className="text-xs text-[var(--fg-muted)]">{l.modulos_concluidos} mód</span>
+                              <span className="font-bold">{l.bigocoins_ganhos} 🪙</span>
+                            </li>
+                          ))}
+                        </ol>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Comparativo entre lojas (placar consolidado) */}
+      {(acessoTotal || (lojasIdsVisiveis && lojasIdsVisiveis.length > 1)) && rankingLojas.length > 0 && (
         <div className="rounded-xl bg-white border border-[var(--border)] p-4 md:p-6">
-          <h2 className="font-bold mb-3">🏪 Ranking por loja</h2>
-          {rankingLojas.length === 0 ? (
-            <p className="text-sm text-[var(--fg-muted)]">Sem dados.</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left border-b border-[var(--border)]">
-                    <th className="py-2 pr-4 font-bold">#</th>
-                    <th className="py-2 pr-4 font-bold">Loja</th>
-                    <th className="py-2 pr-4 font-bold text-right">Colabs</th>
-                    <th className="py-2 pr-4 font-bold text-right">Módulos</th>
-                    <th className="py-2 pr-4 font-bold text-right">🪙</th>
+          <h2 className="font-bold mb-3">📊 Comparativo entre lojas</h2>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left border-b border-[var(--border)]">
+                  <th className="py-2 pr-4 font-bold">#</th>
+                  <th className="py-2 pr-4 font-bold">Loja</th>
+                  <th className="py-2 pr-4 font-bold text-right">Colabs</th>
+                  <th className="py-2 pr-4 font-bold text-right">Módulos</th>
+                  <th className="py-2 pr-4 font-bold text-right">🪙</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rankingLojas.map((l, i) => (
+                  <tr key={l.loja_id} className="border-b border-[var(--border)] last:border-0">
+                    <td className="py-2 pr-4 font-bold">{i + 1}</td>
+                    <td className="py-2 pr-4">{l.loja_nome}</td>
+                    <td className="py-2 pr-4 text-right">{l.colabs}</td>
+                    <td className="py-2 pr-4 text-right">{l.modulos}</td>
+                    <td className="py-2 pr-4 text-right font-extrabold">{l.bigocoins}</td>
                   </tr>
-                </thead>
-                <tbody>
-                  {rankingLojas.map((l, i) => (
-                    <tr key={l.loja_id} className="border-b border-[var(--border)] last:border-0">
-                      <td className="py-2 pr-4 font-bold">{i + 1}</td>
-                      <td className="py-2 pr-4">{l.loja_nome}</td>
-                      <td className="py-2 pr-4 text-right">{l.colabs}</td>
-                      <td className="py-2 pr-4 text-right">{l.modulos}</td>
-                      <td className="py-2 pr-4 text-right font-extrabold">{l.bigocoins}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
       <p className="text-xs text-[var(--fg-muted)] text-center">
-        💡 Master e Franqueadora não entram no ranking porque são staff (não colaboradores
-        operacionais).
+        💡 Apenas colaboradores operacionais (Atendente, Cozinha, Monitor, Líder, Supervisor) entram no ranking.
+        Gerentes, Franqueados, Franqueadora e Master ficam fora porque são gestão.
       </p>
     </div>
   );

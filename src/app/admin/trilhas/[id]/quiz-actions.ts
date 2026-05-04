@@ -87,6 +87,50 @@ export async function adicionarPerguntaAction(_p: QuizState, fd: FormData): Prom
   return { ok: "Pergunta adicionada." };
 }
 
+export async function editarPerguntaAction(_p: QuizState, fd: FormData): Promise<QuizState> {
+  const pergunta_id = String(fd.get("pergunta_id") ?? "");
+  const trilha_id = String(fd.get("trilha_id") ?? "");
+  const pergunta = String(fd.get("pergunta") ?? "").trim();
+  const explicacao = String(fd.get("explicacao") ?? "").trim() || null;
+  const corretaIdx = parseInt(String(fd.get("correta") ?? "-1"), 10);
+
+  if (!pergunta_id || !pergunta) return { erro: "Pergunta inválida." };
+
+  const alternativas: { texto: string; correta: boolean }[] = [];
+  for (let i = 0; i < 5; i++) {
+    const t = String(fd.get(`alt_${i}`) ?? "").trim();
+    if (t) alternativas.push({ texto: t, correta: i === corretaIdx });
+  }
+  if (alternativas.length < 2) return { erro: "Precisa de pelo menos 2 alternativas." };
+  if (!alternativas.some((a) => a.correta)) return { erro: "Marque qual alternativa está correta." };
+
+  const auth = await exigeMaster();
+  if (auth.erro) return { erro: auth.erro };
+
+  const admin = createSupabaseAdminClient();
+
+  // Atualiza texto da pergunta
+  const { error: pErr } = await admin
+    .from("quiz_perguntas")
+    .update({ pergunta, explicacao })
+    .eq("id", pergunta_id);
+  if (pErr) return { erro: pErr.message };
+
+  // Substitui alternativas (apaga e recria — mais simples que diff).
+  await admin.from("quiz_alternativas").delete().eq("pergunta_id", pergunta_id);
+  const linhas = alternativas.map((a, i) => ({
+    pergunta_id,
+    ordem: i + 1,
+    texto: a.texto,
+    correta: a.correta,
+  }));
+  const { error: aErr } = await admin.from("quiz_alternativas").insert(linhas);
+  if (aErr) return { erro: aErr.message };
+
+  if (trilha_id) revalidatePath(`/admin/trilhas/${trilha_id}`);
+  return { ok: "Pergunta atualizada." };
+}
+
 export async function deletarPerguntaAction(_p: QuizState, fd: FormData): Promise<QuizState> {
   const pergunta_id = String(fd.get("pergunta_id") ?? "");
   const trilha_id = String(fd.get("trilha_id") ?? "");

@@ -190,9 +190,9 @@ export async function deletarConteudoAction(_p: ActionState, fd: FormData): Prom
 
   const admin = createSupabaseAdminClient();
 
-  // Se for video_upload, apaga o arquivo do Storage também
+  // Se é arquivo enviado, apaga do Storage também
   const { data: c } = await admin.from("conteudos").select("tipo, url").eq("id", id).maybeSingle();
-  if (c?.tipo === "video_upload" && c.url) {
+  if (c?.url && (c.tipo === "video_upload" || c.tipo === "imagem" || c.tipo === "pdf")) {
     await admin.storage.from("videos").remove([c.url as string]);
   }
 
@@ -203,18 +203,25 @@ export async function deletarConteudoAction(_p: ActionState, fd: FormData): Prom
   return { ok: "Conteúdo removido." };
 }
 
+type TipoConteudoUpload = "video_upload" | "imagem" | "pdf";
+
 /**
- * Registra um vídeo já enviado ao Supabase Storage como conteúdo do módulo.
- * O upload acontece no client, esta action só inscreve em public.conteudos.
+ * Registra um arquivo já enviado ao Supabase Storage como conteúdo do módulo.
+ * O upload acontece no client (chunk), esta action só inscreve em public.conteudos.
+ * Aceita: video_upload, imagem, pdf.
  */
 export async function registrarConteudoUploadAction(_p: ActionState, fd: FormData): Promise<ActionState> {
   const modulo_id = String(fd.get("modulo_id") ?? "");
   const trilha_id = String(fd.get("trilha_id") ?? "");
   const storage_path = String(fd.get("storage_path") ?? "").trim();
+  const tipo = String(fd.get("tipo") ?? "video_upload") as TipoConteudoUpload;
   const titulo = String(fd.get("titulo") ?? "").trim() || null;
 
   if (!modulo_id) return { erro: "Módulo não informado." };
   if (!storage_path) return { erro: "Path do arquivo não informado." };
+  if (!["video_upload", "imagem", "pdf"].includes(tipo)) {
+    return { erro: "Tipo de conteúdo inválido." };
+  }
 
   const auth = await exigeMaster();
   if (auth.erro) return { erro: auth.erro };
@@ -231,7 +238,7 @@ export async function registrarConteudoUploadAction(_p: ActionState, fd: FormDat
 
   const { error } = await admin.from("conteudos").insert({
     modulo_id,
-    tipo: "video_upload",
+    tipo,
     url: storage_path,
     titulo,
     ordem: proxOrdem,
@@ -239,6 +246,34 @@ export async function registrarConteudoUploadAction(_p: ActionState, fd: FormDat
   if (error) return { erro: error.message };
 
   if (trilha_id) revalidatePath(`/admin/trilhas/${trilha_id}`);
-  return { ok: "Vídeo enviado e adicionado." };
+  const nome = tipo === "imagem" ? "Imagem" : tipo === "pdf" ? "PDF" : "Vídeo";
+  return { ok: `${nome} enviado e adicionado.` };
+}
+
+export async function editarModuloAction(_p: ActionState, fd: FormData): Promise<ActionState> {
+  const id = String(fd.get("id") ?? "");
+  const trilha_id = String(fd.get("trilha_id") ?? "");
+  const titulo = String(fd.get("titulo") ?? "").trim();
+  const descricao = String(fd.get("descricao") ?? "").trim() || null;
+  const recompensa_bigocoins = parseInt(String(fd.get("recompensa") ?? "10"), 10) || 10;
+  const nivel_minimo = parseInt(String(fd.get("nivel_minimo") ?? "0"), 10) || 0;
+  const is_preparativo = fd.get("is_preparativo") === "on";
+  const ativo = fd.get("ativo") === "on";
+
+  if (!id) return { erro: "ID inválido." };
+  if (titulo.length < 3) return { erro: "Título muito curto." };
+
+  const auth = await exigeMaster();
+  if (auth.erro) return { erro: auth.erro };
+
+  const admin = createSupabaseAdminClient();
+  const { error } = await admin
+    .from("modulos")
+    .update({ titulo, descricao, recompensa_bigocoins, nivel_minimo, is_preparativo, ativo })
+    .eq("id", id);
+  if (error) return { erro: error.message };
+
+  if (trilha_id) revalidatePath(`/admin/trilhas/${trilha_id}`);
+  return { ok: "Módulo atualizado." };
 }
 

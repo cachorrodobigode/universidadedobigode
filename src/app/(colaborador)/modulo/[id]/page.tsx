@@ -6,12 +6,14 @@ import { podeVerModulo } from "@/lib/auth/cargo-hierarchy";
 import { formatarCpf } from "@/lib/auth/cpf-email";
 import { VideoYouTubeProtegido } from "@/components/VideoYouTubeProtegido";
 import { VideoUploadProtegido } from "@/components/VideoUploadProtegido";
+import { ImagemProtegida } from "@/components/ImagemProtegida";
+import { PdfProtegido } from "@/components/PdfProtegido";
 import { ConcluirModuloForm } from "./ConcluirModuloForm";
 import { QuizPlayer } from "./QuizPlayer";
 
 type Conteudo = {
   id: string;
-  tipo: "video_youtube" | "video_upload" | "pdf";
+  tipo: "video_youtube" | "video_upload" | "pdf" | "imagem";
   url: string;
   titulo: string | null;
   ordem: number;
@@ -84,11 +86,10 @@ export default async function ModuloPage({
 
   const conteudos = (data.conteudos ?? []).sort((a, b) => a.ordem - b.ordem);
 
-  // Pre-gera signed URLs pros vídeos hospedados (server-side, inline pra evitar
-  // qualquer overhead de Server Action chamada de Server Component).
+  // Pre-gera signed URLs pros conteúdos hospedados (vídeo/imagem/PDF).
   const signedUrls = new Map<string, string>();
   for (const c of conteudos) {
-    if (c.tipo !== "video_upload") continue;
+    if (c.tipo === "video_youtube") continue;
     try {
       const { data: sig } = await admin.storage.from("videos").createSignedUrl(c.url, 300);
       if (sig?.signedUrl) signedUrls.set(c.id, sig.signedUrl);
@@ -194,20 +195,26 @@ function Player({
   if (conteudo.tipo === "video_youtube") {
     return <VideoYouTubeProtegido videoId={conteudo.url} cpfLabel={cpfLabel} nome={nome} />;
   }
+  const url = signedUrls.get(conteudo.id);
+  if (!url) {
+    return (
+      <div className="rounded-xl border border-[var(--danger)] bg-red-50 p-4 text-sm text-[var(--danger)]">
+        Não foi possível gerar o link. Tenta de novo em instantes.
+      </div>
+    );
+  }
   if (conteudo.tipo === "video_upload") {
-    const url = signedUrls.get(conteudo.id);
-    if (!url) {
-      return (
-        <div className="rounded-xl border border-[var(--danger)] bg-red-50 p-4 text-sm text-[var(--danger)]">
-          Não foi possível gerar o link do vídeo. Tenta de novo em instantes.
-        </div>
-      );
-    }
     return <VideoUploadProtegido signedUrl={url} cpfLabel={cpfLabel} nome={nome} />;
+  }
+  if (conteudo.tipo === "imagem") {
+    return <ImagemProtegida signedUrl={url} cpfLabel={cpfLabel} nome={nome} />;
+  }
+  if (conteudo.tipo === "pdf") {
+    return <PdfProtegido signedUrl={url} cpfLabel={cpfLabel} nome={nome} />;
   }
   return (
     <div className="rounded-xl border border-dashed border-[var(--border)] p-4 text-sm text-[var(--fg-muted)]">
-      Tipo de conteúdo não suportado ainda: {conteudo.tipo}
+      Tipo de conteúdo não suportado: {conteudo.tipo}
     </div>
   );
 }
