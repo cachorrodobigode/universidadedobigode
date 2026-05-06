@@ -83,6 +83,17 @@ export type Brinde = {
   ativo: boolean;
 };
 
+export type Manual = {
+  id: string;
+  titulo: string;
+  descricao: string | null;
+  arquivo_path: string;
+  nivel_minimo: number;
+  ordem: number;
+  ativo: boolean;
+  criado_em: string;
+};
+
 export type Resgate = {
   id: string;
   usuario_id: string;
